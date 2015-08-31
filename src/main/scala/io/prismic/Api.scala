@@ -6,7 +6,7 @@ import org.joda.time._
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.libs.ws._
-import play.api.libs.ws.ning.NingWSClient
+import play.api.libs.ws.ning.{ NingWSClient, NingAsyncHttpClientConfigBuilder }
 
 import scala.util.control.Exception._
 import scala.concurrent._
@@ -57,7 +57,8 @@ final class Api(
       }).recoverWith {
         case _ => Future.successful(defaultUrl)
       }
-    } catch {
+    }
+    catch {
       case _: Exception => Future.successful(defaultUrl)
     }
   }
@@ -65,7 +66,6 @@ final class Api(
   def oauthInitiateEndpoint = data.oauthEndpoints._1
   def oauthTokenEndpoint = data.oauthEndpoints._2
 }
-
 
 /**
  * Instanciate an Api instance from a prismic.io API URL
@@ -77,34 +77,34 @@ object Api {
   private[prismic] val AcceptJson = Seq("Accept" -> "application/json")
   private[prismic] val MaxAge = """max-age\s*=\s*(\d+)""".r
   private[prismic] val httpClient: play.api.libs.ws.WSClient = {
-    new NingWSClient(
-      new AsyncHttpClientConfig.Builder()
-        .setConnectionTimeoutInMs(Defaults.connectionTimeout.toInt)
-        .setIdleConnectionTimeoutInMs(Defaults.idleTimeout.toInt)
-        .setRequestTimeoutInMs(Defaults.requestTimeout.toInt)
-        .setFollowRedirects(Defaults.followRedirects)
-        .setUseProxyProperties(Defaults.useProxyProperties)
-        .setCompressionEnabled(Defaults.compressionEnabled)
-        .setUserAgent(UserAgent)
-        .setMaximumConnectionsPerHost(maximumConnectionsPerHost)
-        .build()
-    )
+    import scala.concurrent.duration._
+    val config = new NingAsyncHttpClientConfigBuilder(
+      WSClientConfig(
+        connectionTimeout = 3.seconds,
+        idleTimeout = 3.seconds,
+        requestTimeout = 5.seconds,
+        followRedirects = true,
+        useProxyProperties = true,
+        userAgent = Some(UserAgent))
+    ).build
+    val builder = new AsyncHttpClientConfig.Builder(config)
+    new NingWSClient(builder.build)
   }
 
   /**
    * Instantiate an Api instance from a prismic.io API URL
    */
   def get(endpoint: String,
-          accessToken: Option[String] = None,
-          proxy: Option[ProxyServer] = None,
-          cache: Cache = Cache.defaultCache,
-          logger: (Symbol, String) => Unit = { (_, _) => () }): Future[Api] = {
+    accessToken: Option[String] = None,
+    proxy: Option[ProxyServer] = None,
+    cache: Cache = Cache.defaultCache,
+    logger: (Symbol, String) => Unit = { (_, _) => () }): Future[Api] = {
     val url = accessToken.map(token => s"$endpoint?access_token=$token").getOrElse(endpoint)
     cache.getOrSet(url, 5000L) {
       val req = httpClient.url(url).withHeaders(AcceptJson: _*)
       (proxy match {
         case Some(p) => req.withProxyServer(p.asPlayProxyServer)
-        case _ => req
+        case _       => req
       }).get()
         .map { resp =>
           resp.status match {

@@ -13,7 +13,7 @@ object BuildSettings {
   val buildName = "scala-kit"
   val buildOrganization = "io.prismic"
   val buildVersion = Option(System.getProperty("version")).map(_.trim).getOrElse("1.0-SNAPSHOT")
-  val buildScalaVersion = "2.11.1"
+  val buildScalaVersion = "2.11.7"
 
   val buildSettings = xerial.sbt.Sonatype.sonatypeSettings ++
       site.settings ++
@@ -23,7 +23,7 @@ object BuildSettings {
     organization := buildOrganization,
     version := buildVersion,
     scalaVersion := buildScalaVersion,
-    crossScalaVersions := Seq("2.10.4", "2.11.1"),
+    // crossScalaVersions := Seq("2.10.4", "2.11.1"),
     scalacOptions := Seq("-deprecation", "-unchecked", "-feature"),
     gitRemoteRepo := "git@github.com:prismicio/scala-kit.git",
     pomExtra := {
@@ -73,9 +73,9 @@ object KitBuild extends Build {
         Seq(file)
       },
       libraryDependencies ++= Seq(
-        "com.typesafe.play" %% "play-iteratees" % "2.3.4",
-        "com.typesafe.play" %% "play-json" % "2.3.4",
-        "com.typesafe.play" %% "play-ws" % "2.3.4",
+        // "com.typesafe.play" %% "play-iteratees" % "2.4.2",
+        "com.typesafe.play" %% "play-json" % "2.4.2",
+        "com.typesafe.play" %% "play-ws" % "2.4.2",
         "org.apache.commons" % "commons-collections4" % "4.0",
         "org.specs2" %% "specs2" % "2.3.13" % "test"
       )

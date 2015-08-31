@@ -2,6 +2,7 @@ package io.prismic
 
 import io.prismic.Fragment.DocumentLink
 import play.api.libs.functional.syntax._
+import scala.language.{ postfixOps, implicitConversions }
 import play.api.libs.json._
 
 /**
@@ -63,7 +64,7 @@ private[prismic] object Document {
       case "Group"          => Some(Fragment.Group.reader.map(identity[Fragment]))
 
       case t                => None
-    }.flatMap(_.reads(jsvalue \ "value").asOpt)
+    }.flatMap(_.reads(jsvalue \ "value" get).asOpt)
   }
 
   private def decode(slugs: Seq[String]) = slugs.map(java.net.URLDecoder.decode(_, "UTF-8"))

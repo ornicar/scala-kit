@@ -259,7 +259,7 @@ object Fragment {
           (__ \ 'width).read[Int] and
             (__ \ 'height).read[Int] tupled
         ) and
-        (__ \ 'alt).read[Option[String]]
+        (__ \ 'alt).readNullable[String]
       ).tupled.map {
             case (url, (width, height), alt) => View(url, width, height, alt)
           }
