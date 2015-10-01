@@ -74,8 +74,8 @@ object KitBuild extends Build {
       },
       libraryDependencies ++= Seq(
         // "com.typesafe.play" %% "play-iteratees" % "2.4.2",
-        "com.typesafe.play" %% "play-json" % "2.4.2",
-        "com.typesafe.play" %% "play-ws" % "2.4.2",
+        "com.typesafe.play" %% "play-json" % "2.4.3",
+        "com.typesafe.play" %% "play-ws" % "2.4.3",
         "org.apache.commons" % "commons-collections4" % "4.0",
         "org.specs2" %% "specs2" % "2.3.13" % "test"
       )
