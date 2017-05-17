@@ -13,7 +13,7 @@ object BuildSettings {
   val buildName = "scala-kit"
   val buildOrganization = "io.prismic"
   val buildVersion = Option(System.getProperty("version")).map(_.trim).getOrElse("1.0-SNAPSHOT")
-  val buildScalaVersion = "2.11.7"
+  val buildScalaVersion = "2.11.11"
 
   val buildSettings = xerial.sbt.Sonatype.sonatypeSettings ++
       site.settings ++
@@ -26,6 +26,7 @@ object BuildSettings {
     // crossScalaVersions := Seq("2.10.4", "2.11.1"),
     scalacOptions := Seq("-deprecation", "-unchecked", "-feature"),
     gitRemoteRepo := "git@github.com:prismicio/scala-kit.git",
+    publishTo := Some(Resolver.file("file",  new File(sys.props.getOrElse("publishTo", "")))),
     pomExtra := {
       <url>https://github.com/prismicio/scala-kit</url>
         <licenses>
