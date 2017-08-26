@@ -2,9 +2,9 @@ package io.prismic
 
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
-import scala.concurrent.Future
-
-import scala.concurrent.ExecutionContext.Implicits.global
+import play.api.libs.ws._
+import scala.concurrent._
+import play.api.libs.ws.JsonBodyReadables._
 
 /**
  * A SearchForm represent a Form returned by the prismic.io API.
@@ -61,7 +61,7 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
 
   def orderings(o: String) = set("orderings", o)
 
-  def submit(): Future[Response] = {
+  def submit(implicit httpClient: StandaloneWSClient, ec: ExecutionContext): Future[Response] = {
 
     def parseResponse(json: JsValue): Response = Response.jsonReader reads json match {
       case JsSuccess(result, _) => result
@@ -72,7 +72,7 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
       case ("GET", "application/x-www-form-urlencoded", action) =>
 
         val url = {
-          val encoder = new org.jboss.netty.handler.codec.http.QueryStringEncoder(form.action)
+          val encoder = new io.netty.handler.codec.http.QueryStringEncoder(form.action)
           data.foreach {
             case (key, values) => values.foreach(value => encoder.addParam(key, value))
           }
@@ -82,14 +82,14 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
         api.cache.get(url).map { json =>
           Future.successful(parseResponse(json))
         }.getOrElse {
-          val requestHolder = Api.httpClient.url(url).withHeaders(Api.AcceptJson: _*)
+          val requestHolder = httpClient.url(url).addHttpHeaders(Api.AcceptJson: _*)
           (api.proxy match {
             case Some(p) => requestHolder.withProxyServer(p.asPlayProxyServer)
             case _ => requestHolder
           }).get() map { resp =>
             resp.status match {
               case 200 =>
-                val json = resp.json
+                val json = resp.body[JsValue]
 
                 resp.header("Cache-Control").foreach {
                   case Api.MaxAge(duration) => api.cache.set(url, (System.currentTimeMillis + duration.toLong * 1000, json))

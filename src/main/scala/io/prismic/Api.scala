@@ -1,16 +1,15 @@
 package io.prismic
 
-import com.ning.http.client.AsyncHttpClientConfig
 import org.joda.time._
 
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.libs.ws._
-import play.api.libs.ws.ning.{ NingWSClient, NingAsyncHttpClientConfigBuilder }
+import play.api.libs.ws.JsonBodyReadables._
+import play.api.libs.ws.JsonBodyWritables._
 
 import scala.util.control.Exception._
 import scala.concurrent._
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.postfixOps
 
 /**
@@ -45,12 +44,13 @@ final class Api(
    *                (usually the home page of your site)
    * @return a Future corresponding to the URL you should redirect the user to preview the requested change
    */
-  def previewSession(token: String, linkResolver: DocumentLinkResolver, defaultUrl: String): Future[String] = {
+  def previewSession(token: String, linkResolver: DocumentLinkResolver, defaultUrl: String)(
+    implicit httpClient: StandaloneWSClient, ec: ExecutionContext) : Future[String] = {
     try {
       (for {
-        tokenJson <- Api.httpClient.url(token).withHeaders("Accept" -> "application/json").get().map(_.json)
+        tokenJson <- httpClient.url(token).addHttpHeaders("Accept" -> "application/json").get().map(_.body[JsValue])
         mainDocumentId = (tokenJson \ "mainDocument").as[String]
-        results <- forms("everything").query(Predicate.at("document.id", mainDocumentId)).ref(token).submit()
+        results <- forms("everything").query(Predicate.at("document.id", mainDocumentId)).ref(token).submit
         document = results.results.head
       } yield {
         linkResolver(document.asDocumentLink)
@@ -72,24 +72,8 @@ final class Api(
  */
 object Api {
 
-  private val maximumConnectionsPerHost = getIntProperty("PRISMIC_MAX_CONNECTIONS").getOrElse(20)
-  private[prismic] val UserAgent = s"Prismic-${Info.name}/${Info.version} Scala/${Info.scalaVersion} JVM/${System.getProperty("java.version")}"
-  private[prismic] val AcceptJson = Seq("Accept" -> "application/json")
   private[prismic] val MaxAge = """max-age\s*=\s*(\d+)""".r
-  private[prismic] val httpClient: play.api.libs.ws.WSClient = {
-    import scala.concurrent.duration._
-    val config = new NingAsyncHttpClientConfigBuilder(
-      WSClientConfig(
-        connectionTimeout = 3.seconds,
-        idleTimeout = 3.seconds,
-        requestTimeout = 5.seconds,
-        followRedirects = true,
-        useProxyProperties = true,
-        userAgent = Some(UserAgent))
-    ).build
-    val builder = new AsyncHttpClientConfig.Builder(config)
-    new NingWSClient(builder.build)
-  }
+  private[prismic] val AcceptJson = Seq("Accept" -> "application/json")
 
   /**
    * Instantiate an Api instance from a prismic.io API URL
@@ -98,18 +82,19 @@ object Api {
     accessToken: Option[String] = None,
     proxy: Option[ProxyServer] = None,
     cache: Cache = Cache.defaultCache,
-    logger: (Symbol, String) => Unit = { (_, _) => () }): Future[Api] = {
+    logger: (Symbol, String) => Unit = { (_, _) => () })(
+      implicit httpClient: StandaloneWSClient, ec: ExecutionContext): Future[Api] = {
     val url = accessToken.map(token => s"$endpoint?access_token=$token").getOrElse(endpoint)
     cache.getOrSet(url, 5000L) {
-      val req = httpClient.url(url).withHeaders(AcceptJson: _*)
+      val req = httpClient.url(url).addHttpHeaders(AcceptJson: _*)
       (proxy match {
         case Some(p) => req.withProxyServer(p.asPlayProxyServer)
         case _       => req
       }).get()
         .map { resp =>
           resp.status match {
-            case 200 => resp.json
-            case 401 => (resp.json \ "oauth_initiate").asOpt[String] match {
+            case 200 => resp.body[JsValue]
+            case 401 => (resp.body[JsValue] \ "oauth_initiate").asOpt[String] match {
               case Some(u) if accessToken.isDefined =>
                 throw InvalidToken("The provided access token is either invalid or expired", u)
               case Some(u) =>
@@ -147,8 +132,7 @@ case class Ref(
   id: String,
   ref: String,
   label: String,
-  isMasterRef: Boolean = false,
-  scheduledAt: Option[DateTime] = None)
+  isMasterRef: Boolean = false)
 
 private[prismic] object Ref {
 
@@ -156,8 +140,7 @@ private[prismic] object Ref {
     (__ \ "id").read[String] and
     (__ \ "ref").read[String] and
     (__ \ "label").read[String] and
-    ((__ \ "isMasterRef").read[Boolean] orElse Reads.pure(false)) and
-    (__ \ "scheduledAt").readNullable[DateTime]
+    ((__ \ "isMasterRef").read[Boolean] orElse Reads.pure(false))
   )(Ref.apply _)
 
 }
