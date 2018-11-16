@@ -73,7 +73,7 @@ final class Api(
 object Api {
 
   private val maximumConnectionsPerHost = getIntProperty("PRISMIC_MAX_CONNECTIONS").getOrElse(20)
-  private[prismic] val UserAgent = s"Prismic-${Info.name}/${Info.version} Scala/${Info.scalaVersion} JVM/${System.getProperty("java.version")}"
+  private[prismic] val UserAgent = "Prismic"
   private[prismic] val AcceptJson = Seq("Accept" -> "application/json")
   private[prismic] val MaxAge = """max-age\s*=\s*(\d+)""".r
   private[prismic] val httpClient: play.api.libs.ws.WSClient = {

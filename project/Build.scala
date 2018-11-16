@@ -1,31 +1,19 @@
 import sbt._
 import Keys._
-import xerial.sbt._
-import com.typesafe.sbt.SbtSite.site
-import com.typesafe.sbt.SbtGhPages.ghpages
-import com.typesafe.sbt.SbtGit.GitKeys._
-import com.typesafe.sbt.pgp.PgpKeys
-import Sonatype.SonatypeKeys._
-
 
 object BuildSettings {
 
   val buildName = "scala-kit"
   val buildOrganization = "io.prismic"
-  val buildVersion = Option(System.getProperty("version")).map(_.trim).getOrElse("1.0-SNAPSHOT")
-  val buildScalaVersion = "2.11.11"
+  val buildVersion = "1.2.13-THIB211"
+  val buildScalaVersion = "2.11.12"
 
-  val buildSettings = xerial.sbt.Sonatype.sonatypeSettings ++
-      site.settings ++
-      site.includeScaladoc("") ++
-      ghpages.settings ++
-    Seq(
+  val buildSettings = Seq(
     organization := buildOrganization,
     version := buildVersion,
     scalaVersion := buildScalaVersion,
     // crossScalaVersions := Seq("2.10.4", "2.11.1"),
     scalacOptions := Seq("-deprecation", "-unchecked", "-feature"),
-    gitRemoteRepo := "git@github.com:prismicio/scala-kit.git",
     publishTo := Some(Resolver.file("file",  new File(sys.props.getOrElse("publishTo", "")))),
     pomExtra := {
       <url>https://github.com/prismicio/scala-kit</url>
@@ -62,21 +50,10 @@ object KitBuild extends Build {
 
       resolvers += "Typesafe repository releases" at "http://repo.typesafe.com/typesafe/releases/",
       resolvers += "Sonatype releases" at "http://oss.sonatype.org/content/repositories/releases",
-      sourceGenerators in Compile <+= (sourceManaged in Compile, version, scalaVersion, name) map { (d, v, sv, n) =>
-        val file = d / "info.scala"
-        IO.write(file, """package io.prismic
-                         |object Info {
-                         |  val version = "%s"
-                         |  val scalaVersion = "%s"
-                         |  val name = "%s"
-                         |}
-                         |""".stripMargin.format(v, sv, n))
-        Seq(file)
-      },
       libraryDependencies ++= Seq(
         // "com.typesafe.play" %% "play-iteratees" % "2.4.2",
-        "com.typesafe.play" %% "play-json" % "2.4.3",
-        "com.typesafe.play" %% "play-ws" % "2.4.3",
+        "com.typesafe.play" %% "play-json" % "2.4.11",
+        "com.typesafe.play" %% "play-ws" % "2.4.11",
         "org.apache.commons" % "commons-collections4" % "4.0",
         "org.specs2" %% "specs2" % "2.3.13" % "test"
       )
