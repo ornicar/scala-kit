@@ -1,12 +1,11 @@
 package io.prismic
 
-import com.ning.http.client.AsyncHttpClientConfig
 import org.joda.time._
 
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
+import play.api.libs.json.JodaReads._
 import play.api.libs.ws._
-import play.api.libs.ws.ning.{ NingWSClient, NingAsyncHttpClientConfigBuilder }
 
 import scala.util.control.Exception._
 import scala.concurrent._
@@ -23,9 +22,9 @@ final class Api(
     private[prismic] val cache: Cache,
     private[prismic] val logger: (Symbol, String) => Unit) {
 
-  def refs: Map[String, Ref] = data.refs.groupBy(_.label).mapValues(_.head)
+  def refs: Map[String, Ref] = data.refs.groupBy(_.label).view.mapValues(_.head).toMap
   def bookmarks: Map[String, String] = data.bookmarks
-  def forms: Map[String, SearchForm] = data.forms.mapValues(form => SearchForm(this, form, form.defaultData))
+  def forms: Map[String, SearchForm] = data.forms.view.mapValues(form => SearchForm(this, form, form.defaultData)).toMap
   def master: Ref = refs.values.collectFirst { case ref if ref.isMasterRef => ref }.getOrElse(sys.error("no master reference found"))
   /**
    * Experiments exposed by prismic.io API
@@ -45,10 +44,10 @@ final class Api(
    *                (usually the home page of your site)
    * @return a Future corresponding to the URL you should redirect the user to preview the requested change
    */
-  def previewSession(token: String, linkResolver: DocumentLinkResolver, defaultUrl: String): Future[String] = {
+  def previewSession(token: String, linkResolver: DocumentLinkResolver, defaultUrl: String)(implicit ws: WSClient): Future[String] = {
     try {
       (for {
-        tokenJson <- Api.httpClient.url(token).withHeaders("Accept" -> "application/json").get().map(_.json)
+        tokenJson <- ws.url(token).withHttpHeaders("Accept" -> "application/json").get().map(_.json)
         mainDocumentId = (tokenJson \ "mainDocument").as[String]
         results <- forms("everything").query(Predicate.at("document.id", mainDocumentId)).ref(token).submit()
         document = results.results.head
@@ -72,24 +71,8 @@ final class Api(
  */
 object Api {
 
-  private val maximumConnectionsPerHost = getIntProperty("PRISMIC_MAX_CONNECTIONS").getOrElse(20)
-  private[prismic] val UserAgent = "Prismic"
   private[prismic] val AcceptJson = Seq("Accept" -> "application/json")
   private[prismic] val MaxAge = """max-age\s*=\s*(\d+)""".r
-  private[prismic] val httpClient: play.api.libs.ws.WSClient = {
-    import scala.concurrent.duration._
-    val config = new NingAsyncHttpClientConfigBuilder(
-      WSClientConfig(
-        connectionTimeout = 3.seconds,
-        idleTimeout = 3.seconds,
-        requestTimeout = 5.seconds,
-        followRedirects = true,
-        useProxyProperties = true,
-        userAgent = Some(UserAgent))
-    ).build
-    val builder = new AsyncHttpClientConfig.Builder(config)
-    new NingWSClient(builder.build)
-  }
 
   /**
    * Instantiate an Api instance from a prismic.io API URL
@@ -98,10 +81,10 @@ object Api {
     accessToken: Option[String] = None,
     proxy: Option[ProxyServer] = None,
     cache: Cache = Cache.defaultCache,
-    logger: (Symbol, String) => Unit = { (_, _) => () }): Future[Api] = {
+    logger: (Symbol, String) => Unit = { (_, _) => () })(implicit ws: WSClient): Future[Api] = {
     val url = accessToken.map(token => s"$endpoint?access_token=$token").getOrElse(endpoint)
     cache.getOrSet(url, 5000L) {
-      val req = httpClient.url(url).withHeaders(AcceptJson: _*)
+      val req = ws.url(url).withHttpHeaders(AcceptJson: _*)
       (proxy match {
         case Some(p) => req.withProxyServer(p.asPlayProxyServer)
         case _       => req
@@ -184,9 +167,9 @@ case class Form(
     fields: Map[String, Field]) {
 
   def defaultData: Map[String, Seq[String]] = {
-    fields.mapValues(_.default).collect {
+    fields.view.mapValues(_.default).collect {
       case (key, Some(value)) => (key, Seq(value))
-    }
+    }.toMap
   }
 
 }
@@ -208,16 +191,16 @@ private[prismic] object ApiData {
 
   import Experiment.readsExperiment
   implicit val reader = (
-    (__ \ 'refs).read[Seq[Ref]] and
-    (__ \ 'bookmarks).read[Map[String, String]] and
-    (__ \ 'types).read[Map[String, String]] and
-    (__ \ 'tags).read[Seq[String]] and
-    (__ \ 'forms).read[Map[String, Form]] and
+    (__ \ "refs").read[Seq[Ref]] and
+    (__ \ "bookmarks").read[Map[String, String]] and
+    (__ \ "types").read[Map[String, String]] and
+    (__ \ "tags").read[Seq[String]] and
+    (__ \ "forms").read[Map[String, Form]] and
     (
-      (__ \ 'oauth_initiate).read[String] and
-        (__ \ 'oauth_token).read[String] tupled
+      (__ \ "oauth_initiate").read[String] and
+        (__ \ "oauth_token").read[String] tupled
     ) and
-      (__ \ 'experiments).readNullable[Experiments].map(_ getOrElse Experiments(Nil, Nil))
+      (__ \ "experiments").readNullable[Experiments].map(_ getOrElse Experiments(Nil, Nil))
   )(ApiData.apply _)
 
 }

@@ -2,7 +2,6 @@ package io.prismic
 
 import java.util.Collections
 import org.apache.commons.collections4.map.LRUMap
-import scala.collection.convert.Wrappers.JMapWrapper
 
 import play.api.libs.json._
 import scala.concurrent.Future
@@ -26,7 +25,7 @@ object Cache {
  * Do NOT cache prismic.io HTTP responses
  */
 object NoCache extends Cache {
-  def set(key: String, data: (Long, JsValue)) {}
+  def set(key: String, data: (Long, JsValue)) = {}
   def get(key: String): Option[JsValue] = None
   def getOrSet(key: String, ttl: Long)(f: => Future[JsValue]) = f
   def isExpired(key: String): Boolean = true
@@ -37,9 +36,9 @@ object NoCache extends Cache {
  */
 case class BuiltInCache(maxDocuments: Int = 100) extends Cache {
 
-  private val cache = JMapWrapper(Collections.synchronizedMap(new LRUMap[String, (Long, JsValue)](maxDocuments)))
+  private val cache = Collections.synchronizedMap(new LRUMap[String, (Long, JsValue)](maxDocuments))
 
-  def set(key: String, data: (Long, JsValue)) {
+  def set(key: String, data: (Long, JsValue)) = {
     val (ttl, json) = data
     val expiration = System.currentTimeMillis + ttl
     cache.put(key, (expiration, json))
@@ -47,7 +46,7 @@ case class BuiltInCache(maxDocuments: Int = 100) extends Cache {
 
   def get(key: String): Option[JsValue] = {
     val expired = isExpired(key)
-    cache.get(key).collect {
+    Option(cache.get(key)).collect {
       case (expiration: Long, json: JsValue) if !expired  => json
     }
   }
@@ -62,7 +61,7 @@ case class BuiltInCache(maxDocuments: Int = 100) extends Cache {
   }
 
   def isExpired(key: String): Boolean = {
-    cache.get(key) match {
+    Option(cache.get(key)) match {
       case Some((expiration, _)) =>
         expiration != 0 && expiration < System.currentTimeMillis
       case _ => false

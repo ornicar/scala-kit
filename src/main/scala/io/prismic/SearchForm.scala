@@ -2,6 +2,7 @@ package io.prismic
 
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
+import play.api.libs.ws.WSClient
 import scala.concurrent.Future
 
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -61,7 +62,7 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
 
   def orderings(o: String) = set("orderings", o)
 
-  def submit(): Future[Response] = {
+  def submit()(implicit ws: WSClient): Future[Response] = {
 
     def parseResponse(json: JsValue): Response = Response.jsonReader reads json match {
       case JsSuccess(result, _) => result
@@ -71,18 +72,17 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
     (form.method, form.enctype, form.action) match {
       case ("GET", "application/x-www-form-urlencoded", action) =>
 
-        val url = {
-          val encoder = new org.jboss.netty.handler.codec.http.QueryStringEncoder(form.action)
-          data.foreach {
-            case (key, values) => values.foreach(value => encoder.addParam(key, value))
-          }
-          encoder.toString
+        import io.lemonlabs.uri.Url
+        val url = data.flatMap {
+          case (key, values) => values.map(key -> _)
+        }.foldLeft(Url.parse(action)) {
+          case (u, (k, v)) => u.addParam(k, v)
         }
 
-        api.cache.get(url).map { json =>
+        api.cache.get(url.toString).map { json =>
           Future.successful(parseResponse(json))
         }.getOrElse {
-          val requestHolder = Api.httpClient.url(url).withHeaders(Api.AcceptJson: _*)
+          val requestHolder = ws.url(url.toString).withHeaders(Api.AcceptJson: _*)
           (api.proxy match {
             case Some(p) => requestHolder.withProxyServer(p.asPlayProxyServer)
             case _ => requestHolder
@@ -92,7 +92,7 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
                 val json = resp.json
 
                 resp.header("Cache-Control").foreach {
-                  case Api.MaxAge(duration) => api.cache.set(url, (System.currentTimeMillis + duration.toLong * 1000, json))
+                  case Api.MaxAge(duration) => api.cache.set(url.toString, (System.currentTimeMillis + duration.toLong * 1000, json))
                   case _                    =>
                 }
 

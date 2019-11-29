@@ -254,20 +254,20 @@ object Fragment {
 
     implicit val viewReader: Reads[View] =
       (
-        (__ \ 'url).read[String] and
-        (__ \ 'dimensions).read(
-          (__ \ 'width).read[Int] and
-            (__ \ 'height).read[Int] tupled
+        (__ \ "url").read[String] and
+        (__ \ "dimensions").read(
+          (__ \ "width").read[Int] and
+            (__ \ "height").read[Int] tupled
         ) and
-        (__ \ 'alt).readNullable[String]
+        (__ \ "alt").readNullable[String]
       ).tupled.map {
             case (url, (width, height), alt) => View(url, width, height, alt)
           }
 
     implicit val reader: Reads[Image] =
       (
-        (__ \ 'main).read[View] and
-        (__ \ 'views).read[Map[String, View]]
+        (__ \ "main").read[View] and
+        (__ \ "views").read[Map[String, View]]
       ).tupled.map {
           case (main, views) => Image(main, views)
         }
@@ -424,10 +424,10 @@ object Fragment {
 
       implicit val reader: Reads[Span] =
         (
-          (__ \ 'type).read[String] and
-          (__ \ 'start).read[Int] and
-          (__ \ 'end).read[Int] and
-          (__ \ 'data).readNullable[JsObject].map(_.getOrElse(Json.obj()))
+          (__ \ "type").read[String] and
+          (__ \ "start").read[Int] and
+          (__ \ "end").read[Int] and
+          (__ \ "data").readNullable[JsObject].map(_.getOrElse(Json.obj()))
         ).tupled.flatMap {
             case (typ, start, end, data) => typ match {
               case "strong" => Reads.pure(Strong(start, end))

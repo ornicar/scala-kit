@@ -85,7 +85,7 @@ private[prismic] object Document {
               case _                   => Nil
             }.flatten
             case _ => Nil
-          }.flatten: _*
+          }.toSeq.flatten: _*
         )
       }.map(data => (typ, data))
     }

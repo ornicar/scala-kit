@@ -5,8 +5,8 @@ object BuildSettings {
 
   val buildName = "scala-kit"
   val buildOrganization = "io.prismic"
-  val buildVersion = "1.2.13-THIB211"
-  val buildScalaVersion = "2.11.12"
+  val buildVersion = "1.2.13-THIB213"
+  val buildScalaVersion = "2.13.1"
 
   val buildSettings = Seq(
     organization := buildOrganization,
@@ -37,26 +37,5 @@ object BuildSettings {
           </developer>
         </developers>
     }
-  )
-}
-
-object KitBuild extends Build {
-
-  lazy val ScalaKit = Project(
-    BuildSettings.buildName, file("."),
-    settings = BuildSettings.buildSettings ++ Seq(
-      scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
-      scalacOptions in (Compile, doc) ++= Seq("-doc-root-content", baseDirectory.value + "/root-doc.txt"),
-
-      resolvers += "Typesafe repository releases" at "http://repo.typesafe.com/typesafe/releases/",
-      resolvers += "Sonatype releases" at "http://oss.sonatype.org/content/repositories/releases",
-      libraryDependencies ++= Seq(
-        // "com.typesafe.play" %% "play-iteratees" % "2.4.2",
-        "com.typesafe.play" %% "play-json" % "2.4.11",
-        "com.typesafe.play" %% "play-ws" % "2.4.11",
-        "org.apache.commons" % "commons-collections4" % "4.0",
-        "org.specs2" %% "specs2" % "2.3.13" % "test"
-      )
-    )
   )
 }
