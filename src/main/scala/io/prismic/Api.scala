@@ -9,7 +9,6 @@ import play.api.libs.ws._
 
 import scala.util.control.Exception._
 import scala.concurrent._
-import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.postfixOps
 
 /**
@@ -41,7 +40,7 @@ final class Api(data: ApiData) {
       token: String,
       linkResolver: DocumentLinkResolver,
       defaultUrl: String
-  )(implicit ws: WSClient): Future[String] = {
+  )(implicit ws: WSClient, ec: ExecutionContext): Future[String] = {
     try {
       (for {
         tokenJson <- ws
@@ -74,45 +73,22 @@ final class Api(data: ApiData) {
   */
 object Api {
 
-  private[prismic] val AcceptJson = Seq("Accept" -> "application/json")
-  private[prismic] val MaxAge = """max-age\s*=\s*(\d+)""".r
-
   /**
     * Instantiate an Api instance from a prismic.io API URL
     */
   def get(
-      endpoint: String,
-      accessToken: Option[String] = None,
-      logger: (Symbol, String) => Unit = { (_, _) =>
-        ()
-      }
-  )(implicit ws: WSClient): Future[Api] = {
-    val url = accessToken
-      .map(token => s"$endpoint?access_token=$token")
-      .getOrElse(endpoint)
-    ws.url(url)
-      .withHttpHeaders(AcceptJson: _*)
+      endpoint: String
+  )(implicit ws: WSClient, ec: ExecutionContext): Future[Api] =
+    ws.url(endpoint)
+      .withHttpHeaders("Accept" -> "application/json")
       .get()
       .map { resp =>
         resp.status match {
           case 200 => resp.json
           case 401 =>
-            (resp.json \ "oauth_initiate").asOpt[String] match {
-              case Some(u) if accessToken.isDefined =>
-                throw InvalidToken(
-                  "The provided access token is either invalid or expired",
-                  u
-                )
-              case Some(u) =>
-                throw AuthorizationNeeded(
-                  "You need to provide an access token to access this repository",
-                  u
-                )
-              case None =>
-                throw UnexpectedError(
-                  "Authorization error, but not URL was provided"
-                )
-            }
+            throw UnexpectedError(
+              "Authorization error, but not URL was provided"
+            )
           case err =>
             throw UnexpectedError(
               s"Got an HTTP error $err (${resp.statusText})"
@@ -126,7 +102,6 @@ object Api {
             .getOrElse(sys.error(s"Error while parsing API document: $json"))
         )
       }
-  }
 }
 
 /**

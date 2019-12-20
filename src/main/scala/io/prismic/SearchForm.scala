@@ -5,7 +5,7 @@ import play.api.libs.json._
 import play.api.libs.ws.WSClient
 import scala.concurrent.Future
 
-import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.ExecutionContext
 
 /**
   * A SearchForm represent a Form returned by the prismic.io API.
@@ -82,7 +82,10 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
 
   def orderings(o: String) = set("orderings", o)
 
-  def submit()(implicit ws: WSClient): Future[Response] = {
+  def submit()(
+      implicit ws: WSClient,
+      es: ExecutionContext
+  ): Future[Response] = {
 
     def parseResponse(json: JsValue): Response =
       Response.jsonReader reads json match {
@@ -103,7 +106,7 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
           }
 
         ws.url(url.toString)
-          .withHttpHeaders(Api.AcceptJson: _*)
+          .withHttpHeaders("Accept" -> "application/json")
           .get() map { resp =>
           resp.status match {
             case 200 => parseResponse(resp.json)
