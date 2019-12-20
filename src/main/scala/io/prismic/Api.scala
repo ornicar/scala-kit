@@ -34,16 +34,6 @@ final class Api(
       .getOrElse(sys.error("no master reference found"))
 
   /**
-    * Experiments exposed by prismic.io API
-    */
-  def experiments: Experiments = data.experiments
-
-  /**
-    * Shortcut to the current running experiment, if any
-    */
-  def experiment: Option[Experiment] = experiments.current
-
-  /**
     * Return the URL to display a given preview
     * @param token as received from Prismic server to identify the content to preview
     * @param linkResolver the link resolver to build URL for your site
@@ -221,13 +211,11 @@ private[prismic] case class ApiData(
     types: Map[String, String],
     tags: Seq[String],
     forms: Map[String, Form],
-    oauthEndpoints: (String, String),
-    experiments: Experiments
+    oauthEndpoints: (String, String)
 )
 
 private[prismic] object ApiData {
 
-  import Experiment.readsExperiment
   implicit val reader = (
     (__ \ "refs").read[Seq[Ref]] and
       (__ \ "bookmarks").read[Map[String, String]] and
@@ -237,10 +225,7 @@ private[prismic] object ApiData {
       (
         (__ \ "oauth_initiate").read[String] and
           (__ \ "oauth_token").read[String] tupled
-      ) and
-      (__ \ "experiments")
-        .readNullable[Experiments]
-        .map(_ getOrElse Experiments(Nil, Nil))
+      )
   )(ApiData.apply _)
 
 }
