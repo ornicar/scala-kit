@@ -15,11 +15,7 @@ import scala.language.postfixOps
 /**
   * High-level entry point for communications with prismic.io API
   */
-final class Api(
-    data: ApiData,
-    accessToken: Option[String],
-    private[prismic] val logger: (Symbol, String) => Unit
-) {
+final class Api(data: ApiData) {
 
   def refs: Map[String, Ref] =
     data.refs.groupBy(_.label).view.mapValues(_.head).toMap
@@ -94,8 +90,8 @@ object Api {
     val url = accessToken
       .map(token => s"$endpoint?access_token=$token")
       .getOrElse(endpoint)
-    val req = ws.url(url).withHttpHeaders(AcceptJson: _*)
-    req
+    ws.url(url)
+      .withHttpHeaders(AcceptJson: _*)
       .get()
       .map { resp =>
         resp.status match {
@@ -127,18 +123,10 @@ object Api {
         new Api(
           ApiData.reader
             .reads(json)
-            .getOrElse(sys.error(s"Error while parsing API document: $json")),
-          accessToken,
-          logger
+            .getOrElse(sys.error(s"Error while parsing API document: $json"))
         )
       }
   }
-
-  private def getIntProperty(key: String): Option[Int] =
-    Option(System.getProperty(key)).flatMap { strValue =>
-      catching(classOf[NumberFormatException]) opt strValue.toInt
-    }
-
 }
 
 /**
@@ -205,7 +193,7 @@ private[prismic] object Form {
   implicit val reader = Json.reads[Form]
 }
 
-private[prismic] case class ApiData(
+case class ApiData(
     refs: Seq[Ref],
     bookmarks: Map[String, String],
     types: Map[String, String],
@@ -214,7 +202,7 @@ private[prismic] case class ApiData(
     oauthEndpoints: (String, String)
 )
 
-private[prismic] object ApiData {
+object ApiData {
 
   implicit val reader = (
     (__ \ "refs").read[Seq[Ref]] and
