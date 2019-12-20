@@ -5,7 +5,7 @@ object BuildSettings {
 
   val buildName = "scala-kit"
   val buildOrganization = "io.prismic"
-  val buildVersion = "1.2.13-THIB213"
+  val buildVersion = "1.2.14-THIB213"
   val buildScalaVersion = "2.13.1"
 
   val buildSettings = Seq(
@@ -14,7 +14,9 @@ object BuildSettings {
     scalaVersion := buildScalaVersion,
     // crossScalaVersions := Seq("2.10.4", "2.11.1"),
     scalacOptions := Seq("-deprecation", "-unchecked", "-feature"),
-    publishTo := Some(Resolver.file("file",  new File(sys.props.getOrElse("publishTo", "")))),
+    publishTo := Some(
+      Resolver.file("file", new File(sys.props.getOrElse("publishTo", "")))
+    ),
     pomExtra := {
       <url>https://github.com/prismicio/scala-kit</url>
         <licenses>

@@ -13,51 +13,68 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.postfixOps
 
 /**
- * High-level entry point for communications with prismic.io API
- */
+  * High-level entry point for communications with prismic.io API
+  */
 final class Api(
     data: ApiData,
     accessToken: Option[String],
-    serverProxy: Option[ProxyServer],
-    private[prismic] val cache: Cache,
-    private[prismic] val logger: (Symbol, String) => Unit) {
+    private[prismic] val logger: (Symbol, String) => Unit
+) {
 
-  def refs: Map[String, Ref] = data.refs.groupBy(_.label).view.mapValues(_.head).toMap
+  def refs: Map[String, Ref] =
+    data.refs.groupBy(_.label).view.mapValues(_.head).toMap
   def bookmarks: Map[String, String] = data.bookmarks
-  def forms: Map[String, SearchForm] = data.forms.view.mapValues(form => SearchForm(this, form, form.defaultData)).toMap
-  def master: Ref = refs.values.collectFirst { case ref if ref.isMasterRef => ref }.getOrElse(sys.error("no master reference found"))
-  /**
-   * Experiments exposed by prismic.io API
-   */
-  def experiments: Experiments = data.experiments
-  /**
-   * Shortcut to the current running experiment, if any
-   */
-  def experiment: Option[Experiment] = experiments.current
-  def proxy: Option[ProxyServer] = serverProxy
+  def forms: Map[String, SearchForm] =
+    data.forms.view
+      .mapValues(form => SearchForm(this, form, form.defaultData))
+      .toMap
+  def master: Ref =
+    refs.values
+      .collectFirst { case ref if ref.isMasterRef => ref }
+      .getOrElse(sys.error("no master reference found"))
 
   /**
-   * Return the URL to display a given preview
-   * @param token as received from Prismic server to identify the content to preview
-   * @param linkResolver the link resolver to build URL for your site
-   * @param defaultUrl the URL to default to return if the preview doesn't correspond to a document
-   *                (usually the home page of your site)
-   * @return a Future corresponding to the URL you should redirect the user to preview the requested change
-   */
-  def previewSession(token: String, linkResolver: DocumentLinkResolver, defaultUrl: String)(implicit ws: WSClient): Future[String] = {
+    * Experiments exposed by prismic.io API
+    */
+  def experiments: Experiments = data.experiments
+
+  /**
+    * Shortcut to the current running experiment, if any
+    */
+  def experiment: Option[Experiment] = experiments.current
+
+  /**
+    * Return the URL to display a given preview
+    * @param token as received from Prismic server to identify the content to preview
+    * @param linkResolver the link resolver to build URL for your site
+    * @param defaultUrl the URL to default to return if the preview doesn't correspond to a document
+    *                (usually the home page of your site)
+    * @return a Future corresponding to the URL you should redirect the user to preview the requested change
+    */
+  def previewSession(
+      token: String,
+      linkResolver: DocumentLinkResolver,
+      defaultUrl: String
+  )(implicit ws: WSClient): Future[String] = {
     try {
       (for {
-        tokenJson <- ws.url(token).withHttpHeaders("Accept" -> "application/json").get().map(_.json)
+        tokenJson <- ws
+          .url(token)
+          .withHttpHeaders("Accept" -> "application/json")
+          .get()
+          .map(_.json)
         mainDocumentId = (tokenJson \ "mainDocument").as[String]
-        results <- forms("everything").query(Predicate.at("document.id", mainDocumentId)).ref(token).submit()
+        results <- forms("everything")
+          .query(Predicate.at("document.id", mainDocumentId))
+          .ref(token)
+          .submit()
         document = results.results.head
       } yield {
         linkResolver(document.asDocumentLink)
       }).recoverWith {
         case _ => Future.successful(defaultUrl)
       }
-    }
-    catch {
+    } catch {
       case _: Exception => Future.successful(defaultUrl)
     }
   }
@@ -67,94 +84,110 @@ final class Api(
 }
 
 /**
- * Instanciate an Api instance from a prismic.io API URL
- */
+  * Instanciate an Api instance from a prismic.io API URL
+  */
 object Api {
 
   private[prismic] val AcceptJson = Seq("Accept" -> "application/json")
   private[prismic] val MaxAge = """max-age\s*=\s*(\d+)""".r
 
   /**
-   * Instantiate an Api instance from a prismic.io API URL
-   */
-  def get(endpoint: String,
-    accessToken: Option[String] = None,
-    proxy: Option[ProxyServer] = None,
-    cache: Cache = Cache.defaultCache,
-    logger: (Symbol, String) => Unit = { (_, _) => () })(implicit ws: WSClient): Future[Api] = {
-    val url = accessToken.map(token => s"$endpoint?access_token=$token").getOrElse(endpoint)
-    cache.getOrSet(url, 5000L) {
-      val req = ws.url(url).withHttpHeaders(AcceptJson: _*)
-      (proxy match {
-        case Some(p) => req.withProxyServer(p.asPlayProxyServer)
-        case _       => req
-      }).get()
-        .map { resp =>
-          resp.status match {
-            case 200 => resp.json
-            case 401 => (resp.json \ "oauth_initiate").asOpt[String] match {
+    * Instantiate an Api instance from a prismic.io API URL
+    */
+  def get(
+      endpoint: String,
+      accessToken: Option[String] = None,
+      logger: (Symbol, String) => Unit = { (_, _) =>
+        ()
+      }
+  )(implicit ws: WSClient): Future[Api] = {
+    val url = accessToken
+      .map(token => s"$endpoint?access_token=$token")
+      .getOrElse(endpoint)
+    val req = ws.url(url).withHttpHeaders(AcceptJson: _*)
+    req
+      .get()
+      .map { resp =>
+        resp.status match {
+          case 200 => resp.json
+          case 401 =>
+            (resp.json \ "oauth_initiate").asOpt[String] match {
               case Some(u) if accessToken.isDefined =>
-                throw InvalidToken("The provided access token is either invalid or expired", u)
+                throw InvalidToken(
+                  "The provided access token is either invalid or expired",
+                  u
+                )
               case Some(u) =>
-                throw AuthorizationNeeded("You need to provide an access token to access this repository", u)
+                throw AuthorizationNeeded(
+                  "You need to provide an access token to access this repository",
+                  u
+                )
               case None =>
-                throw UnexpectedError("Authorization error, but not URL was provided")
+                throw UnexpectedError(
+                  "Authorization error, but not URL was provided"
+                )
             }
-            case err => throw UnexpectedError(s"Got an HTTP error $err (${resp.statusText})")
-          }
+          case err =>
+            throw UnexpectedError(
+              s"Got an HTTP error $err (${resp.statusText})"
+            )
         }
-    }.map { json =>
-      new Api(
-        ApiData.reader.reads(json).getOrElse(sys.error(s"Error while parsing API document: $json")),
-        accessToken,
-        proxy,
-        cache,
-        logger)
-    }
+      }
+      .map { json =>
+        new Api(
+          ApiData.reader
+            .reads(json)
+            .getOrElse(sys.error(s"Error while parsing API document: $json")),
+          accessToken,
+          logger
+        )
+      }
   }
 
-  private def getIntProperty(key: String): Option[Int] = Option(System.getProperty(key)).flatMap { strValue =>
-    catching(classOf[NumberFormatException]) opt strValue.toInt
-  }
+  private def getIntProperty(key: String): Option[Int] =
+    Option(System.getProperty(key)).flatMap { strValue =>
+      catching(classOf[NumberFormatException]) opt strValue.toInt
+    }
 
 }
 
 /**
- * Represent a prismic.io reference, a fixed point in time.
- *
- * The references must be provided when accessing to any prismic.io resource
- * (except /api) and allow to assert that the URL you use will always
- * returns the same results.
- */
+  * Represent a prismic.io reference, a fixed point in time.
+  *
+  * The references must be provided when accessing to any prismic.io resource
+  * (except /api) and allow to assert that the URL you use will always
+  * returns the same results.
+  */
 case class Ref(
-  id: String,
-  ref: String,
-  label: String,
-  isMasterRef: Boolean = false,
-  scheduledAt: Option[DateTime] = None)
+    id: String,
+    ref: String,
+    label: String,
+    isMasterRef: Boolean = false,
+    scheduledAt: Option[DateTime] = None
+)
 
 private[prismic] object Ref {
 
   implicit val reader = (
     (__ \ "id").read[String] and
-    (__ \ "ref").read[String] and
-    (__ \ "label").read[String] and
-    ((__ \ "isMasterRef").read[Boolean] orElse Reads.pure(false)) and
-    (__ \ "scheduledAt").readNullable[DateTime]
+      (__ \ "ref").read[String] and
+      (__ \ "label").read[String] and
+      ((__ \ "isMasterRef").read[Boolean] orElse Reads.pure(false)) and
+      (__ \ "scheduledAt").readNullable[DateTime]
   )(Ref.apply _)
 
 }
 
 /**
- * A prismic.io document field metadata
- */
+  * A prismic.io document field metadata
+  */
 case class Field(`type`: String, multiple: Boolean, default: Option[String])
 
 private[prismic] object Field {
   implicit val reader = (
     (__ \ "type").read[String] and
-    (__ \ "multiple").readNullable[Boolean].map(_.getOrElse(false)) and
-    (__ \ "default").readNullable[String]
+      (__ \ "multiple").readNullable[Boolean].map(_.getOrElse(false)) and
+      (__ \ "default").readNullable[String]
   )(Field.apply _)
 }
 
@@ -164,12 +197,16 @@ case class Form(
     rel: Option[String],
     enctype: String,
     action: String,
-    fields: Map[String, Field]) {
+    fields: Map[String, Field]
+) {
 
   def defaultData: Map[String, Seq[String]] = {
-    fields.view.mapValues(_.default).collect {
-      case (key, Some(value)) => (key, Seq(value))
-    }.toMap
+    fields.view
+      .mapValues(_.default)
+      .collect {
+        case (key, Some(value)) => (key, Seq(value))
+      }
+      .toMap
   }
 
 }
@@ -179,28 +216,31 @@ private[prismic] object Form {
 }
 
 private[prismic] case class ApiData(
-  refs: Seq[Ref],
-  bookmarks: Map[String, String],
-  types: Map[String, String],
-  tags: Seq[String],
-  forms: Map[String, Form],
-  oauthEndpoints: (String, String),
-  experiments: Experiments)
+    refs: Seq[Ref],
+    bookmarks: Map[String, String],
+    types: Map[String, String],
+    tags: Seq[String],
+    forms: Map[String, Form],
+    oauthEndpoints: (String, String),
+    experiments: Experiments
+)
 
 private[prismic] object ApiData {
 
   import Experiment.readsExperiment
   implicit val reader = (
     (__ \ "refs").read[Seq[Ref]] and
-    (__ \ "bookmarks").read[Map[String, String]] and
-    (__ \ "types").read[Map[String, String]] and
-    (__ \ "tags").read[Seq[String]] and
-    (__ \ "forms").read[Map[String, Form]] and
-    (
-      (__ \ "oauth_initiate").read[String] and
-        (__ \ "oauth_token").read[String] tupled
-    ) and
-      (__ \ "experiments").readNullable[Experiments].map(_ getOrElse Experiments(Nil, Nil))
+      (__ \ "bookmarks").read[Map[String, String]] and
+      (__ \ "types").read[Map[String, String]] and
+      (__ \ "tags").read[Seq[String]] and
+      (__ \ "forms").read[Map[String, Form]] and
+      (
+        (__ \ "oauth_initiate").read[String] and
+          (__ \ "oauth_token").read[String] tupled
+      ) and
+      (__ \ "experiments")
+        .readNullable[Experiments]
+        .map(_ getOrElse Experiments(Nil, Nil))
   )(ApiData.apply _)
 
 }
