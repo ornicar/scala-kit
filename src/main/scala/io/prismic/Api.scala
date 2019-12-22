@@ -9,12 +9,19 @@ import play.api.libs.ws._
 
 import scala.util.control.Exception._
 import scala.concurrent._
+import scala.concurrent.duration._
 import scala.language.postfixOps
+
+import com.github.blemale.scaffeine.{AsyncCache, Scaffeine}
 
 /**
   * High-level entry point for communications with prismic.io API
   */
 final class Api(data: ApiData) {
+
+  private[prismic] val cache: AsyncCache[String, Response] = Scaffeine()
+    .expireAfterWrite(1 hour)
+    .buildAsync[String, Response]
 
   def refs: Map[String, Ref] =
     data.refs.groupBy(_.label).view.mapValues(_.head).toMap

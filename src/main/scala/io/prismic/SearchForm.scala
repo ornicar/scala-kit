@@ -104,18 +104,23 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
           .foldLeft(Url.parse(action)) {
             case (u, (k, v)) => u.addParam(k, v)
           }
+          .toString
 
-        ws.url(url.toString)
-          .withHttpHeaders("Accept" -> "application/json")
-          .get() map { resp =>
-          resp.status match {
-            case 200 => parseResponse(resp.json)
-            case error =>
-              sys.error(
-                s"Http error(status:$error msg:${resp.statusText} body:${resp.body}"
-              )
-          }
-        }
+        api.cache.getFuture(
+          url,
+          _ =>
+            ws.url(url)
+              .withHttpHeaders("Accept" -> "application/json")
+              .get() map { resp =>
+              resp.status match {
+                case 200 => parseResponse(resp.json)
+                case error =>
+                  sys.error(
+                    s"Http error(status:$error msg:${resp.statusText} body:${resp.body}"
+                  )
+              }
+            }
+        )
 
       case _ =>
         Future.failed {

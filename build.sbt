@@ -7,6 +7,7 @@ lazy val root = Project(BuildSettings.buildName, file("."))
     "com.typesafe.play" %% "play-json" % "2.8.1",
     "com.typesafe.play" %% "play-json-joda" % "2.8.1",
     "com.typesafe.play" %% "play-ws" % "2.8.0",
-    "io.lemonlabs" %% "scala-uri" % "1.5.1"
+    "io.lemonlabs" %% "scala-uri" % "1.5.1",
+    "com.github.blemale"    %% "scaffeine"                      % "3.1.0" % "compile"
   )
 ))
