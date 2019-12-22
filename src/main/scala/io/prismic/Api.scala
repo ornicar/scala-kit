@@ -12,16 +12,15 @@ import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-import com.github.blemale.scaffeine.{AsyncCache, Scaffeine}
+import com.github.blemale.scaffeine.{AsyncCache, AsyncLoadingCache, Scaffeine}
 
 /**
   * High-level entry point for communications with prismic.io API
   */
-final class Api(data: ApiData) {
-
-  private[prismic] val cache: AsyncCache[String, Response] = Scaffeine()
-    .expireAfterWrite(1 hour)
-    .buildAsync[String, Response]
+final class Api(
+    data: ApiData,
+    private[prismic] val cache: AsyncCache[String, Response]
+) {
 
   def refs: Map[String, Ref] =
     data.refs.groupBy(_.label).view.mapValues(_.head).toMap
@@ -73,42 +72,6 @@ final class Api(data: ApiData) {
 
   def oauthInitiateEndpoint = data.oauthEndpoints._1
   def oauthTokenEndpoint = data.oauthEndpoints._2
-}
-
-/**
-  * Instanciate an Api instance from a prismic.io API URL
-  */
-object Api {
-
-  /**
-    * Instantiate an Api instance from a prismic.io API URL
-    */
-  def get(
-      endpoint: String
-  )(implicit ws: WSClient, ec: ExecutionContext): Future[Api] =
-    ws.url(endpoint)
-      .withHttpHeaders("Accept" -> "application/json")
-      .get()
-      .map { resp =>
-        resp.status match {
-          case 200 => resp.json
-          case 401 =>
-            throw UnexpectedError(
-              "Authorization error, but not URL was provided"
-            )
-          case err =>
-            throw UnexpectedError(
-              s"Got an HTTP error $err (${resp.statusText})"
-            )
-        }
-      }
-      .map { json =>
-        new Api(
-          ApiData.reader
-            .reads(json)
-            .getOrElse(sys.error(s"Error while parsing API document: $json"))
-        )
-      }
 }
 
 /**
