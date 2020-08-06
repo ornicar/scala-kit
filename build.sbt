@@ -4,10 +4,10 @@ lazy val root = Project(BuildSettings.buildName, file("."))
   scalacOptions in (Compile, doc) ++= Seq("-doc-root-content", baseDirectory.value + "/root-doc.txt"),
 
   libraryDependencies ++= Seq(
-    "com.typesafe.play" %% "play-json" % "2.8.1",
-    "com.typesafe.play" %% "play-json-joda" % "2.8.1",
-    "com.typesafe.play" %% "play-ws" % "2.8.1",
+    "com.typesafe.play" %% "play-json" % "2.9.0",
+    "com.typesafe.play" %% "play-json-joda" % "2.9.0",
+    "com.typesafe.play" %% "play-ws" % "2.8.2",
     "io.lemonlabs" %% "scala-uri" % "2.2.0",
-    "com.github.blemale"    %% "scaffeine"                      % "4.0.0" % "compile"
+    "com.github.blemale"    %% "scaffeine"                      % "4.0.1" % "compile"
   )
 ))
