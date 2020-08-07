@@ -6,6 +6,7 @@ import play.api.libs.functional.syntax._
 import play.api.libs.json._
 import play.api.libs.json.JodaReads._
 import play.api.libs.ws._
+import play.api.libs.ws.JsonBodyReadables._
 
 import scala.util.control.Exception._
 import scala.concurrent._
@@ -46,14 +47,15 @@ final class Api(
       token: String,
       linkResolver: DocumentLinkResolver,
       defaultUrl: String
-  )(implicit ws: WSClient, ec: ExecutionContext): Future[String] = {
+  )(implicit ws: StandaloneWSClient, ec: ExecutionContext): Future[String] = {
     try {
       (for {
-        tokenJson <- ws
-          .url(token)
-          .withHttpHeaders("Accept" -> "application/json")
-          .get()
-          .map(_.json)
+        tokenJson <-
+          ws
+            .url(token)
+            .withHttpHeaders("Accept" -> "application/json")
+            .get()
+            .map(_.body[JsValue])
         mainDocumentId = (tokenJson \ "mainDocument").as[String]
         results <- forms("everything")
           .query(Predicate.at("document.id", mainDocumentId))

@@ -2,7 +2,8 @@ package io.prismic
 
 import play.api.libs.functional.syntax._
 import play.api.libs.json._
-import play.api.libs.ws.WSClient
+import play.api.libs.ws.StandaloneWSClient
+import play.api.libs.ws.JsonBodyReadables._
 import scala.concurrent.Future
 
 import scala.concurrent.ExecutionContext
@@ -29,11 +30,12 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
     form.fields
       .get(field)
       .map { fieldDesc =>
-        copy(data = data ++ Map(
-          field -> (if (fieldDesc.multiple)
-                      data.getOrElse(field, Nil) ++ Seq(value)
-                    else Seq(value))
-        )
+        copy(data =
+          data ++ Map(
+            field -> (if (fieldDesc.multiple)
+                        data.getOrElse(field, Nil) ++ Seq(value)
+                      else Seq(value))
+          )
         )
       }
       .getOrElse(sys.error(s"Unknown field $field"))
@@ -82,8 +84,8 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
 
   def orderings(o: String) = set("orderings", o)
 
-  def submit()(
-      implicit ws: WSClient,
+  def submit()(implicit
+      ws: StandaloneWSClient,
       es: ExecutionContext
   ): Future[Response] = {
 
@@ -113,7 +115,7 @@ case class SearchForm(api: Api, form: Form, data: Map[String, Seq[String]]) {
               .withHttpHeaders("Accept" -> "application/json")
               .get() map { resp =>
               resp.status match {
-                case 200 => parseResponse(resp.json)
+                case 200 => parseResponse(resp.body[JsValue])
                 case error =>
                   sys.error(
                     s"Http error(status:$error msg:${resp.statusText} body:${resp.body}"

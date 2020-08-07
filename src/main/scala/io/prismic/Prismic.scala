@@ -2,11 +2,13 @@ package io.prismic
 
 import com.github.blemale.scaffeine.{AsyncCache, AsyncLoadingCache, Scaffeine}
 import play.api.libs.ws._
+import play.api.libs.ws.JsonBodyReadables._
+import play.api.libs.json.JsValue
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.language.postfixOps
 
-final class Prismic(implicit ws: WSClient, ec: ExecutionContext) {
+final class Prismic(implicit ws: StandaloneWSClient, ec: ExecutionContext) {
 
   def get(endpoint: String): Future[Api] = apiCache get endpoint
 
@@ -24,7 +26,7 @@ final class Prismic(implicit ws: WSClient, ec: ExecutionContext) {
       .get()
       .map { resp =>
         resp.status match {
-          case 200 => resp.json
+          case 200 => resp.body[JsValue]
           case 401 =>
             throw UnexpectedError(
               "Authorization error, but not URL was provided"
